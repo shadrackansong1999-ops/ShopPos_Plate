@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ShopPOS Cloud - Sign in</title>
+<meta name="description" content="Check your shop's sales, inventory and reports from anywhere.">
+<link rel="manifest" href="/static/manifest.json">
+<meta name="theme-color" content="#D4FAE2" id="theme-color-meta">
+<link rel="icon" href="/static/icons/favicon-64.png">
+<link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ShopPOS">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@300;500;600&display=swap">
+<link rel="stylesheet" href="/static/css/style.css">
+<script src="/static/js/theme.js"></script>
+</head>
+<body>
+  <main class="login">
+    <section class="plate p1 intro">
+      <div class="brand"><img src="/static/icons/icon-192.png" alt="" width="34" height="34"><span>ShopPOS Cloud</span></div>
+      <div style="display:grid;gap:14px">
+        <h1>Your shop's numbers, wherever you are.</h1>
+        <p>Today's sales, stock levels and cashier activity from every till, on your phone or any browser.</p>
+      </div>
+    </section>
+
+    <section class="plate form-plate" aria-labelledby="signin-title">
+      <h2 id="signin-title">Sign in</h2>
+      <div id="err" class="alert hidden" role="alert"></div>
+
+      <form id="login-form" autocomplete="on">
+        <label class="field">Owner email
+          <input id="email" type="email" required autocomplete="username" inputmode="email" autofocus>
+        </label>
+        <div class="pw-row">
+          <label class="field">Password
+            <input id="password" type="password" required autocomplete="current-password">
+          </label>
+          <button type="button" id="pw-toggle" aria-controls="password" aria-pressed="false">Show</button>
+        </div>
+        <button id="submit-btn" type="submit" class="btn block">Sign in</button>
+      </form>
+
+      <p style="color:var(--mute);font-size:.8125rem">
+        Use the email and password you entered in ShopPOS under Settings, then Remote Access.
+      </p>
+      <p id="install-hint" class="hidden"><button class="link-btn" id="install-btn">Install ShopPOS Cloud on this device</button></p>
+    </section>
+  </main>
+
+  <script>
+    async function sha256Hex(text) {
+      const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+    }
+
+    const pw = document.getElementById("password");
+    const toggle = document.getElementById("pw-toggle");
+    toggle.addEventListener("click", () => {
+      const show = pw.type === "password";
+      pw.type = show ? "text" : "password";
+      toggle.textContent = show ? "Hide" : "Show";
+      toggle.setAttribute("aria-pressed", String(show));
+    });
+
+    document.getElementById("login-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = document.getElementById("email").value.trim().toLowerCase();
+      const errEl = document.getElementById("err");
+      const btn = document.getElementById("submit-btn");
+      errEl.classList.add("hidden");
+      btn.disabled = true;
+      btn.textContent = "Signing in...";
+      try {
+        const password_hash = await sha256Hex(pw.value);
+        const r = await fetch("/api/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password_hash }),
+        });
+        const data = await r.json();
+        if (data.ok) { window.location.href = "/dashboard"; return; }
+        errEl.textContent = data.error || "Sign in failed. Check your email and password.";
+      } catch (err) {
+        errEl.textContent = "Could not reach the server. Check your connection and try again.";
+      }
+      errEl.classList.remove("hidden");
+      btn.disabled = false;
+      btn.textContent = "Sign in";
+    });
+
+    // Install prompt (Chrome/Edge/Android). On iPhone use Share, then Add to Home Screen.
+    let deferredPrompt = null;
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault(); deferredPrompt = e;
+      document.getElementById("install-hint").classList.remove("hidden");
+    });
+    document.getElementById("install-btn").addEventListener("click", async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt(); await deferredPrompt.userChoice; deferredPrompt = null;
+      document.getElementById("install-hint").classList.add("hidden");
+    });
+
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+  </script>
+</body>
+</html>
